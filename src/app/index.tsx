@@ -7,7 +7,7 @@ import {
     ArrowRight,
     AtSign
 } from 'lucide-react-native'
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DateData } from 'react-native-calendars';
 import dayjs from 'dayjs';
 
@@ -24,6 +24,7 @@ import { GuestEmail } from '@/components/email';
 import { Calendar } from '@/components/calendar';
 import { router } from 'expo-router';
 import { tripServer } from '@/server/trip-server';
+import { Loading } from '@/components/loading';
 
 enum StepForm {
     TRIP_DETAILS = 1,
@@ -39,6 +40,7 @@ enum MODAL {
 export default function Index() {
     // LOADING
     const [isCreatingTrip, setIsCreatingTrip] = useState(false)
+    const [isGettingTrip, setIsGettingTrip] = useState(true)
 
     // DATA
     const [stepForm, setStepForm] = useState(StepForm.TRIP_DETAILS)
@@ -158,6 +160,36 @@ export default function Index() {
             console.log(error)
             setIsCreatingTrip(false)
         }
+    }
+
+    async function getTrip() {
+        try {
+            const tripId = await tripStorage.get()
+            if (!tripId) {
+                setIsGettingTrip(false)
+                return
+            }
+            if (tripId) {
+                router.navigate("/trip/" + tripId)
+            }
+
+            const trip = await tripServer.getById(tripId)
+
+            if (trip) {
+                router.navigate("/trip/" + trip.id)
+            }
+        } catch (error) {
+            setIsGettingTrip(false)
+            console.log(error)
+        }
+    }
+
+    useEffect(() => {
+        getTrip()
+    }, [])
+
+    if (isGettingTrip) {
+        return <Loading />
     }
 
     return (
