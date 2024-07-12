@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Alert, Keyboard, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Keyboard, SectionList, Text, View } from "react-native";
 import { PlusIcon, Tag, Calendar as IconCalendar, Clock } from "lucide-react-native";
 
 import { colors } from "@/styles/colors";
@@ -11,9 +11,19 @@ import { Input } from "@/components/input";
 import dayjs from "dayjs";
 import { Calendar } from "@/components/calendar";
 import { activitiesServer } from "@/server/activities-server";
+import { Activity, ActivityProps } from "@/components/activity";
+import { Loading } from "@/components/loading";
 
 type Props = {
     tripDetails: TripData
+}
+
+type TripActivities = {
+    title: {
+        dayNumber: number
+        dayName: string
+    }
+    data: ActivityProps[]
 }
 
 enum MODAL {
@@ -28,12 +38,15 @@ export function Activities({ tripDetails }: Props) {
 
     // LOADING
     const [isCreatingActivity, setIsCreatingActivity] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
+    const [isLoadingActivities, setIsLoadingActivities] = useState(true)
 
     // DATA
     const [activityTitle, setActivityTitle] = useState("")
     const [activityDate, setActivityDate] = useState("")
     const [activityHour, setActivityHour] = useState("")
+
+    // LISTS
+    const [tripActivities, setTripActivities] = useState<TripActivities[]>([])
 
     function resetNewActivityFields() {
         setActivityDate("")
@@ -58,6 +71,7 @@ export function Activities({ tripDetails }: Props) {
 
             Alert.alert("Activity added", "The activity was added successfully")
 
+            await getTripActivities()
             resetNewActivityFields()
         } catch (error) {
             console.log(error)
@@ -65,6 +79,34 @@ export function Activities({ tripDetails }: Props) {
             setIsCreatingActivity(false)
         }
     }
+
+    async function getTripActivities() {
+        try {
+            const activities = await activitiesServer.getActivitiesByTripId(tripDetails.id)
+
+            const activitiesToSectionList = activities.map(dayActivity => ({
+                title: {
+                    dayNumber: dayjs(dayActivity.date).date(),
+                    dayName: dayjs(dayActivity.date).format("dddd").replace("-feira", "")
+                },
+                data: dayActivity.activities.map(activity => ({
+                    id: activity.id,
+                    title: activity.title,
+                    hour: dayjs(activity.occurs_at).format("hh[:]mm[h]"),
+                    isBefore: dayjs(activity.occurs_at).isBefore(dayjs())
+                }))
+            }))
+            setTripActivities(activitiesToSectionList)
+        } catch (error) {
+            console.log(error)
+        } finally {
+            setIsLoadingActivities(false)
+        }
+    }
+
+    useEffect(() => {
+        getTripActivities()
+    }, [])
 
     return (
         <View className="flex-1">
@@ -78,6 +120,35 @@ export function Activities({ tripDetails }: Props) {
                     <Button.Title>New activity</Button.Title>
                 </Button>
             </View>
+
+            {isLoadingActivities ? <Loading /> : (
+
+                <SectionList
+                    sections={tripActivities}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => <Activity data={item} />}
+                    renderSectionHeader={({ section }) => (
+                        <View className="w-full">
+                            <Text className="text-zinc-50 text-2xl font-semibold py-2">
+                                {section.title.dayNumber + " "}
+                                <Text className="text-zinc-500 text-base font-regular capitalize">
+                                    {section.title.dayName}
+                                </Text>
+                            </Text>
+
+                            {
+                                section.data.length === 0 && (
+                                    <Text className="text-zinc-500 font-regular text-sm mb-8">
+                                        No activities for today
+                                    </Text>
+                                )
+                            }
+                        </View>
+                    )}
+                    contentContainerClassName="gap-3 pb-48"
+                    showsVerticalScrollIndicator={false}
+                />
+            )}
 
             <Modal
                 visible={showModal === MODAL.NEW_ACTIVITY}
