@@ -63,7 +63,7 @@ export default function Trip() {
             const ends_at = dayjs(trip.ends_at).format("DD")
             const month = dayjs(trip.starts_at).format("MMM")
 
-            setDestination(tripDetails.destination)
+            setDestination(trip.destination)
 
             console.log("destination", destination)
 
